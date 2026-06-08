@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>Resume Parser</h1>
+  
+  <button id="uploadBtn">Extract Resume</button>
+  <input type="file" id="pdfInput" accept=".pdf">
+
+  <button id="fillBtn">Fill Form</button>
+
+  <div id="status"></div>
+  
+  <div id="output"></div>
+
+  <script src="pdf.min.js"></script>
+  <script src="keywords.js"></script>
+  <script src="storage.js"></script>
+  <script src="extractor.js"></script>
+  <script src="parser.js"></script>
+  <script src="display.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

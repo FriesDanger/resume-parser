@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Resume Parser",
+  "version": "1.0",
+  "description": "Extract rsume sections and autofill job applications",
+  "permissions": ["scripting", "storage", "activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Resume Parser"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["*.pdf", "pdf.worker.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
