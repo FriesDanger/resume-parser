@@ -1,58 +1,93 @@
-async function fireInputEvents(input){
-    const focusEvent = new Event("focus");
-    const inputEvent = new Event("input", {bubbles: true});
-    const changeEvent = new Event("change", {bubbles: true});
+// ============================================
+// STORAGE
+// content.js needs its own copy since it
+// runs in a completely separate scope from popup.js
+// ============================================
 
-    input.dispatchEvent(focusEvent);
-    input.dispatchEvent(inputEvent);
-    input.dispatchEvent(changeEvent);
+async function loadResumeData() {
+  const result = await browser.storage.local.get("resumeData");
+  return result.resumeData || null;
 }
 
-async function findAndFillFields(resumeData){
-    const inputs = document.querySelectorAll("input", "textarea");
-    let filledCount = 0;
+// ============================================
+// INPUT EVENTS
+// Fires synthetic events to trick frameworks
+// into recognizing programmatic value changes
+// ============================================
 
-    for (const input of inputs){
-        const attributes = [
-            input.name?.toLowerCase(),
-            input.id?.toLowerCase(),
-            input.placeholder?.toLowerCase()
-        ].filter(Boolean);
+function fireInputEvents(input) {
+  const focusEvent = new Event("focus");
+  const inputEvent = new Event("input", { bubbles: true });
+  const changeEvent = new Event("change", { bubbles: true });
 
-        for (const [section, lines] of Object.entries(resumeData)) {
-            const matches = attributes.some(attr => attr.includes(section));
-            if(matches) {
-                input.value = lines.join(", ");
-                fireInputEvents(input);
-                filledCount++;
-                break;
-            }
-        }
+  input.dispatchEvent(focusEvent);
+  input.dispatchEvent(inputEvent);
+  input.dispatchEvent(changeEvent);
+}
 
+// ============================================
+// FIELD MATCHER
+// Scans page for matching input fields
+// and fills them with resume data
+// ============================================
+
+async function findAndFillFields(resumeData) {
+  const inputs = document.querySelectorAll("input, textarea");
+  let filledCount = 0;
+
+  for (const input of inputs) {
+    const attributes = [
+      input.name?.toLowerCase(),
+      input.id?.toLowerCase(),
+      input.placeholder?.toLowerCase()
+    ].filter(Boolean);
+
+    for (const [section, lines] of Object.entries(resumeData)) {
+      const matches = attributes.some(attr => attr.includes(section));
+      if (matches) {
+        input.value = lines.join(", ");
+        fireInputEvents(input);
+        filledCount++;
+        break;
+      }
     }
-    return filledCount;
+  }
+
+  return filledCount;
 }
+
+// ============================================
+// FILL ORCHESTRATOR
+// Loads resume from storage and fills page fields
+// Returns structured response back to popup.js
+// ============================================
 
 async function fillFormFromStorage() {
-    const resumeData = await loadResumeData();
+  const resumeData = await loadResumeData();
 
-    if(!resumeData){
-        return {success: false, reason : "noResume"};
-    }
+  if (!resumeData) {
+    return { success: false, reason: "noResume" };
+  }
 
-    const filledCount = await findAndFillFields(resumeData);
+  const filledCount = await findAndFillFields(resumeData);
 
-    if(filledCount === 0) {
-        return { success: false, reason: "noMatch"};
-    }
+  if (filledCount === 0) {
+    return { success: false, reason: "noMatch" };
+  }
 
-    return {success: true, filledCount};
+  return { success: true, filledCount };
 }
 
+// ============================================
+// MESSAGE LISTENER
+// Listens for fillForm command from popup.js
+// Returns response after filling completes
+// ============================================
+
 browser.runtime.onMessage.addListener((message) => {
-    if(message.action === "fillForm") {
-        return fillFormFromStorage().then((response) => {
-            return response;
-        });
-    }
+  if (message.action === "fillForm") {
+    return fillFormFromStorage().then((response) => {
+      return response;
+    });
+  }
 });

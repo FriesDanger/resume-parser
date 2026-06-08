@@ -10,7 +10,7 @@ async function detectSection(line){
         cleaned.includes(keyword)) || null;
 }
 
-async function parseResume(text){
+function parseResume(text){
     const lines = text.split("\n");
     const result = {};
     let currentSection = null;
