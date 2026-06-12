@@ -1,27 +1,3 @@
-function detectColumns(items){
-  let result = "";
-  let lastX = null;
-  let lastY = null;
-
-  for ( const item of items) {
-    const x = item.transform[4];
-    const y = item.transform[5];
-  
-    if(lastY !== null && Math.abs(y - lastY) > 5) {
-      result += "\n";
-    } else if (lastX !== null && x - lastX > 50) {
-      result += ", ";
-    } else {
-      result += " ";
-    }
-
-    result += item.str;
-    lastX = x + (item.width || 0);
-    lastY = y;
-  }
-
-  return result;
-}
 // ============================================
 // SECTION KEYWORDS
 // All known resume section headers
@@ -31,40 +7,9 @@ const SECTION_KEYWORDS = [
   "education", "academic background",
   "skills", "technical skills", "core competencies",
   "projects", "certifications", "awards",
-  "summary", "objective", "profile", "email*", "Zip code"
+  "summary", "objective", "profile",
 ];
 
-function extractTextFromPDF(file) {
-  return new Promise(async (resolve, reject) =>{
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-
-      const bytes = new Uint8Array(arrayBuffer.slice(0, 5));
-      const header = String.fromCharCode(...bytes);
-      if (!header.startsWith("%PDF-")) {
-        reject(new Error("File is not a valid PDF."));
-        return;
-      }
-
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 
-        browser.runtime.getURL("pdf.worker.min.js");
-
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer}).promise;
-      let fullText = "";
-
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const pageText = detectColumns(content.items);
-        fullText += pageText + "\n\n";
-      }
-
-      resolve(fullText);
-    } catch (err) {
-      reject (err);
-    }
-  });
-}
 // ============================================
 // PARSER UTILITIES
 // ============================================
@@ -84,24 +29,32 @@ function detectSection(line) {
     cleaned.includes(keyword)) || null;
 }
 
+//Checks if the resume have any personal info.
+//Return the personal info into a different category.
 function extractPersonalInfo(lines){
   const personal = {};
-
+  //detect each part with either | or ,
   for (const line of lines) {
     const parts = line.split(/[|,]/).map(p => p.trim()).filter(Boolean);
-  
+    //circle each parts to detect emails, addresses, phone numbers.
     for ( const part of parts){
       if (part.includes("@")) {
         personal.email = part;
-      } else if(/[\d\s\-\+\(\)]{7,}/.test(part)){
+      } 
+      // detect the phone of user.
+      else if(/[\d\s\-\+\(\)]{7,}/.test(part)){
         personal.phone = part;
-      } else if(
+      }
+      // detect the street of user
+       else if(
         /\b(St|Ave|Rd|Blvd|Dr|Lane|Ln|Court|Ct|Way)\b/i.test(part) ||
         /\b[A-Z]{2}\b/.test(part) ||
         /\d{5}/.test(part)
       ) {
         personal.address = part;
-      } else if(/^]A-Z][a-z]+(\s[A-Z][a-z]+)$/.test(part)){
+      }
+      //detect the name of user
+      else if(/^[A-Z][a-z]+(\s[A-Z][a-z]+)$/.test(part)){
         personal.name = part;
       }
     }
@@ -116,23 +69,28 @@ function parseResume(text) {
   let currentSection = null;
   const personalLines = [];
 
-
+  //Check if line if they are junk and they are not in the resume categories
   for (const line of lines) {
     if (isJunkLine(line)) continue;
 
     const section = detectSection(line);
+    //set currentSection equals to section
     if (section) {
       currentSection = section;
       if (!result[currentSection]) {
         result[currentSection] = [];
       }
-    } else if (currentSection && line.trim() !== "") {
+    } 
+    //if currentSection exist and no space. Add result data to result.
+    else if (currentSection && line.trim() !== "") {
       result[currentSection].push(line.trim());
-    } else if (!currentSection && line.trim() !== "") {
+    }
+    //if currentSection not exist. Add the result to the personal
+    else if (!currentSection && line.trim() !== "") {
       personalLines.push(line.trim());
     }
   }
-
+  //Add personal info to result
   if (personalLines.length > 0 ) {
     result.personal = extractPersonalInfo(personalLines);
   }
@@ -170,15 +128,15 @@ function showStatus(message, isError = false) {
 function displayResults(parsed) {
   const output = document.getElementById("output");
   output.innerHTML = "";
-
+  //loop through the section to create a card of each section
   for (const [section, value] of Object.entries(parsed)) {
     const card = document.createElement("div");
     card.className = "section-card";
-
+    //create header of the section
     const heading = document.createElement("h3");
     heading.textContent = section.toUpperCase();
     card.appendChild(heading);
-
+    //create the list of the section.
     const list = document.createElement("ul");
 
     if(section === "personal") {
@@ -187,7 +145,9 @@ function displayResults(parsed) {
         item.textContent = `${key}: ${val}`;
         list.appendChild(item);
       });
-    } else {
+    }
+    // add the list to the section. 
+    else {
       value.forEach (line => {
         const item = document.createElement("li");
         item.textContent = line;
@@ -200,11 +160,13 @@ function displayResults(parsed) {
   }
 }
 
+//Show confirm dialog before filling form.
 function confirmFill(parsed){
   const sections = Object.keys(parsed).join(", ");
   return confirm(`About to fill the following sections: ${sections}. Continue?`);
 }
 
+//handle fill response and shows appropriate status message.
 function handleFillResponse(response){
   switch(response.reason) {
     case "noResume":
@@ -215,63 +177,11 @@ function handleFillResponse(response){
       break;
     case "error":
       showStatus("Something went wrong.", true);
+      break;
     default: 
-      showStatus(`Sucessfully filled ${response.filledCount} field(s)!`);
+      showStatus(`Successfully filled ${response.filledCount} field(s)!`);
   }
 }
-
-
-// ============================================
-// DRAG AND DROP HANDLERS
-// Captures PDF file from drop zone
-// Prevents Firefox from opening file directly
-// ============================================
-
-const dropZone = document.getElementById("dropZone");
-
-dropZone.addEventListener("dragover", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  dropZone.classList.add("dragover");
-});
-
-dropZone.addEventListener("dragleave", () => {
-  dropZone.classList.remove("dragover");
-});
-
-dropZone.addEventListener("drop", async (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  dropZone.classList.remove("dragover");
-
-  const file = event.dataTranfer.files[0];
-
-  if(!file) {
-    showStatus("No file detected. Try Again.", true);
-    return;
-  }
-
-  if(file.type !== "application/pdf") {
-    showStatus("Only PDF files are supported." , true);
-    return;
-  }
-
-  try {
-    const text = await extractTextFromPDF(file);
-    const parsed = parseResume(text);
-
-    if(Object.keys(parsed).length === 0) {
-      showStatus("No sections found. Check your resume has clear section headers.", true);
-      return;
-    }
-
-    await saveResumeData(parsed);
-    displayResults(parsed);
-    showStatus("Resume extracted and saved successfully!");
-  } catch (err) {
-    showStatus("Error reading PDF: " + err.message, true);
-  }
-})
 
 // ============================================
 // OBJECT A — Extract resume from pasted text
@@ -305,7 +215,7 @@ document.getElementById("uploadBtn").addEventListener("click", async () => {
       showStatus("No sections found. Check that your resume has clear section headers.", true);
       return;
     }
-
+    //save the resume and display result
     await saveResumeData(parsed);
     displayResults(parsed);
     showStatus("Resume extracted and saved successfully!");
@@ -320,24 +230,24 @@ document.getElementById("uploadBtn").addEventListener("click", async () => {
 
 document.getElementById("fillBtn").addEventListener("click", async () => {
   const resumeData = await loadResumeData();
-
+  //checks if the resume exist
   if(!resumeData) {
     showStatus("Please extract your resume first.", true);
     return;
   }
 
   const confirmed = confirmFill(resumeData);
-
+  //if user cancelled stop here.
   if(!confirmed){
     showStatus("Fill cancelled.", false);
     return;
   }
-
+  //takes the first element of the array 
   const [tab] = await browser.tabs.query({
     active: true,
     currentWindow: true
   });
-
+  //send message to the browser.
   const response = await browser.tabs.sendMessage(tab.id, {
     action: "fillForm"
   });
