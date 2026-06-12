@@ -42,10 +42,19 @@ async function findAndFillFields(resumeData) {
       input.placeholder?.toLowerCase()
     ].filter(Boolean);
 
-    for (const [section, lines] of Object.entries(resumeData)) {
-      const matches = attributes.some(attr => attr.includes(section));
-      if (matches) {
-        input.value = lines.join(", ");
+    for (const [section, value] of Object.entries(resumeData)) {
+      if (section === "personal") {
+        for (const [key, personalValue] of Object.entries(value)) {
+          const matches = attributes.some(attr => attr.includes(key));
+          if (matches) {
+            input.value = personalValue;
+            fireInputEvents(input);
+            filledCount++;
+            break;
+          }
+        }
+      } else if (attributes.some(attr => attr.includes(section))) {
+        input.value = value.join(", ");
         fireInputEvents(input);
         filledCount++;
         break;
